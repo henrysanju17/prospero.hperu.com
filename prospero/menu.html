@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prospero Taberna Peruana</title>
+    <style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px; }
+    .container { max-width: 600px; margin: auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+    h1 { text-align: center; font-family: serif; color: #333; }
+    h2 { text-align: center; color: #333; }
+    .plato { display: flex; align-items: center; border-bottom: 1px solid #eee; padding: 15px 0; gap: 15px; }
+    .plato-img { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; flex-shrink: 0; cursor: pointer; transition: transform 0.2s; }
+    .plato-img:hover { transform: scale(1.1); }
+    .plato-info { flex-grow: 1; }
+    .plato-info h3 { margin: 0; color: #555; }
+    .plato-info .descripcion { font-size: 14px; color: #777; margin: 4px 0; }
+    .plato-info .precio { color: #007BFF; font-weight: bold; }
+    .cantidad input { width: 60px; text-align: center; font-size: 16px; padding: 5px; border-radius: 5px; border: 1px solid #ccc; }
+    .total-section, .cliente-section { margin-top: 25px; }
+    #total { font-size: 24px; font-weight: bold; color: #28a745; text-align: right; }
+    .form-group { margin-bottom: 15px; }
+    .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
+    .form-group input { width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc; box-sizing: border-box; }
+    .btn { display: block; width: 100%; background-color: #25D366; color: white; padding: 15px; text-align: center; border: none; border-radius: 5px; font-size: 18px; font-weight: bold; cursor: pointer; text-decoration: none; }
+    .btn:hover { background-color: #1EBE57; }
+    .hidden { display: none; }
+    #seccion-confirmacion { text-align: center; margin-top: 30px; background-color: #e8f5e9; padding: 20px; border-radius: 8px; }
+    #seccion-confirmacion h2 { color: #2e7d32; }
+    
+    /* --- NUEVOS ESTILOS PARA EL LIGHTBOX --- */
+    #lightbox {
+        position: fixed;
+        z-index: 1000;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.8);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+    #lightbox img {
+        max-width: 90%;
+        max-height: 80%;
+        border-radius: 5px;
+        box-shadow: 0 0 25px rgba(0,0,0,0.5);
+    }
+    #lightbox.active {
+        display: flex;
+    }
+    </style>
+</head>
+<body>
+    <!-- NUEVO ELEMENTO HTML PARA EL LIGHTBOX -->
+    <div id="lightbox">
+        <img id="lightbox-img" src="">
+    </div>
+
+    <div style="text-align: center; margin-bottom: 20px;">
+        <img src="logo.jpg" alt="Logo" style="max-width: 150px; height: auto;">
+    </div>
+    <div class="container">
+        <h1>Prospero Taberna Peruana </h1>
+        <p style="text-align:center;">Elige tus platos, envíanos tu pedido por WhatsApp y realiza el pago.</p>
+        <div id="seccion-menu">
+            <div id="lista-platos">
+                <p id="cargando-menu" style="text-align:center; padding: 20px;">Cargando menú...</p>
+            </div>
+            <div class="total-section">
+                <h2>Total a Pagar: <span id="total">S/ 0.00</span></h2>
+            </div>
+            <div class="cliente-section">
+                <h2>Tus Datos</h2>
+                <div class="form-group"><label for="nombre">Tu Nombre:</label><input type="text" id="nombre" placeholder="Ej: Juan Pérez"></div>
+                <div class="form-group"><label for="telefono">Tu Celular (opcional):</label><input type="tel" id="telefono" placeholder="Ej: 987654321"></div>
+            </div>
+            <button class="btn" onclick="enviarPedido()">✅ Enviar Pedido y Pagar por WhatsApp</button>
+            <p style="text-align: center; font-size: 14px; margin-top: 10px;">
+                Desarrollado por <a href="https://www.hperu.com" target="_blank">www.hperu.com</a>
+            </p>
+        </div>
+        <div id="seccion-confirmacion" class="hidden">
+            <h2>¡Pedido enviado a WhatsApp! 🎉</h2>
+            <p>Por favor, abre WhatsApp para enviar el mensaje.</p>
+            <p><strong>Luego, acércate con tu constancia de pago para recoger tu pedido.</strong></p>
+        </div>
+    </div>
+
+<script>
+    // --- CONFIGURACIÓN ---
+    const numeroWhatsApp = '51982914633';
+    const linkQR_Yape = 'https://drive.google.com/file/d/1E9sJ32GZ5E4hwDEXYvLXRKx7nf9MfXB9/view?usp=sharing'; // yape 
+    const n8nRegistroVentasUrl = 'https://n8n.hperu.com/webhook/cfe2f60c-12ae-48ab-88fd-49c16d3d96f7';//venta
+    const n8nServirMenuUrl = 'https://n8n.hperu.com/webhook/07d163bc-fd8b-4451-8e7b-5dde39f43f20'; // menu
+
+    // --- LÓGICA PARA CARGAR EL MENÚ DINÁMICO ---
+    document.addEventListener('DOMContentLoaded', async function() {
+        const listaPlatosDiv = document.getElementById('lista-platos');
+        try {
+            const response = await fetch(n8nServirMenuUrl);
+            if (!response.ok) throw new Error('No se pudo cargar el menú desde el servidor.');
+            
+            const data = await response.json();
+            if (data && data.menu_items && Array.isArray(data.menu_items)) {
+                const platos = data.menu_items;
+                document.getElementById('cargando-menu').style.display = 'none';
+                platos.forEach(plato => {
+                    const platoHTML = `
+                        <div class="plato">
+                            <img class="plato-img" src="${plato.id}.jpg" alt="${plato.nombre}">
+                            <div class="plato-info">
+                                <h3>${plato.nombre}</h3>
+                                <p class="descripcion">${plato.descripcion}</p>
+                                <span class="precio">S/ ${plato.precio}</span>
+                            </div>
+                            <div class="cantidad">
+                                <input type="number" min="0" value="0" data-precio="${plato.precio}" data-nombre="${plato.nombre}">
+                            </div>
+                        </div>
+                    `;
+                    listaPlatosDiv.innerHTML += platoHTML;
+                });
+                
+                // --- NUEVO CÓDIGO PARA ACTIVAR EL LIGHTBOX ---
+                const lightbox = document.getElementById('lightbox');
+                const lightboxImg = document.getElementById('lightbox-img');
+                
+                document.querySelectorAll('.plato-img').forEach(image => {
+                    image.addEventListener('click', e => {
+                        lightbox.classList.add('active');
+                        lightboxImg.src = image.src;
+                    });
+                });
+
+                lightbox.addEventListener('click', e => {
+                    // Si el clic es en el fondo oscuro (el propio lightbox) y no en la imagen, se cierra.
+                    if (e.target !== e.currentTarget) return;
+                    lightbox.classList.remove('active');
+                });
+                // --- FIN DEL CÓDIGO DEL LIGHTBOX ---
+
+                document.querySelectorAll('.cantidad input').forEach(input => input.addEventListener('input', calcularTotal));
+                document.querySelectorAll('.plato-img').forEach(img => img.addEventListener('error', function() { this.style.display = 'none'; }));
+            } else {
+                throw new Error('El formato de los datos del menú es incorrecto.');
+            }
+        } catch (error) {
+            console.error('Error al cargar el menú:', error);
+            document.getElementById('cargando-menu').innerText = 'Error al cargar el menú. Por favor, intente más tarde.';
+        }
+    });
+
+    // --- FUNCIÓN PARA CALCULAR EL TOTAL (SIN CAMBIOS) ---
+    function calcularTotal() {
+        let total = 0;
+        document.querySelectorAll('#lista-platos .cantidad input').forEach(input => {
+            const precio = parseFloat(input.dataset.precio) || 0;
+            const cantidad = parseInt(input.value) || 0;
+            total += precio * cantidad;
+        });
+        document.getElementById('total').innerText = `S/ ${total.toFixed(2)}`;
+    }
+
+    // --- FUNCIÓN PARA ENVIAR EL PEDIDO (SIN CAMBIOS) ---
+    async function enviarPedido() {
+        const btn = document.querySelector('.btn');
+        btn.disabled = true;
+        btn.innerText = 'Procesando...';
+        const nombreCliente = document.getElementById('nombre').value.trim();
+        if (!nombreCliente) {
+            alert('Por favor, ingresa tu nombre para identificarte.');
+            btn.disabled = false;
+            btn.innerText = '✅ Enviar Pedido y Pagar por WhatsApp';
+            return;
+        }
+        const numeroPedido = 'P' + Date.now().toString().slice(-5);
+        let resumenPlatos = '';
+        let totalFinal = 0;
+        let tieneItems = false;
+        document.querySelectorAll('#lista-platos .cantidad input').forEach(input => {
+            const cantidad = parseInt(input.value) || 0;
+            if (cantidad > 0) {
+                tieneItems = true;
+                resumenPlatos += `- ${cantidad}x ${input.dataset.nombre}\n`;
+                totalFinal += cantidad * parseFloat(input.dataset.precio);
+            }
+        });
+        if (!tieneItems) {
+            alert('No has seleccionado ningún plato.');
+            btn.disabled = false;
+            btn.innerText = '✅ Enviar Pedido y Pagar por WhatsApp';
+            return;
+        }
+        const orderData = {
+            numeroPedido,
+            nombreCliente,
+            resumenPlatos: resumenPlatos.trim(),
+            totalFinal: totalFinal.toFixed(2)
+        };
+        try {
+            await fetch(n8nRegistroVentasUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(orderData)
+            });
+        } catch (error) {
+            console.error('Fallo al registrar el pedido en n8n:', error);
+        }
+        document.getElementById('seccion-menu').classList.add('hidden');
+        document.getElementById('seccion-confirmacion').classList.remove('hidden');
+        let mensajeWhatsApp = `*¡NUEVO PEDIDO #${numeroPedido}!* 🍽️\n\n*Cliente:* ${nombreCliente}\n\n*Detalle:*\n${resumenPlatos}\n*------------------*\n*TOTAL A PAGAR: S/ ${totalFinal.toFixed(2)}*\n\n*PASO 2: REALIZA EL PAGO* 💰\n\nPagar con *Yape* *982914633* , ver el QR:\n${linkQR_Yape}\n\n*IMPORTANTE:* Al pagar, por favor pon "*Pedido ${numeroPedido}*" en el mensaje o comentario de Yape.\n\n Desarrollado por *www.hperu.com*`;
+        const textoCodificado = encodeURIComponent(mensajeWhatsApp);
+        const urlWhatsApp = `https://wa.me/${numeroWhatsApp}?text=${textoCodificado}`;
+        setTimeout(() => {
+            window.location.href = urlWhatsApp;
+        }, 1500);
+    }
+</script>
+</body>
+</html>

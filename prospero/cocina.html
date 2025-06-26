@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pantalla de Cocina</title>
+    <style>
+        body { font-family: sans-serif; background-color: #333; color: white; margin: 0; }
+        #header { background-color: #1a1a1a; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+        #header h1 { margin: 0; font-size: 24px; }
+        #btn-actualizar { background-color: #007BFF; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        #pedidos-container { display: flex; flex-wrap: wrap; padding: 10px; gap: 10px; }
+        .ticket { background-color: #f0f0f0; color: #333; border-radius: 5px; width: 300px; padding: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .ticket h2 { margin: 0 0 10px 0; border-bottom: 2px solid #ccc; padding-bottom: 10px; }
+        .ticket .cliente { font-weight: bold; }
+        .ticket .detalle { white-space: pre-wrap; background-color: #fff; padding: 10px; margin: 10px 0; border: 1px solid #ddd; font-family: monospace; }
+        .ticket .btn-despachado { width: 100%; background-color: #28a745; color: white; border: none; padding: 15px; font-size: 18px; border-radius: 5px; cursor: pointer; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <div id="header">
+        <h1>Pedidos Pendientes</h1>
+        <button id="btn-actualizar" onclick="cargarPedidos()">Actualizar</button>
+    </div>
+
+    <div id="pedidos-container">
+        <!-- Los tickets de los pedidos se generarán aquí -->
+        <p id="cargando" style="padding: 20px;">Cargando pedidos...</p>
+    </div>
+
+<script>
+    // --- CONFIGURACIÓN ---
+    const n8nObtenerPedidosUrl = 'https://n8n.hperu.com/webhook/7044b438-6d06-4df7-b583-f921fc050a16'; // <-- Pega la URL del workflow "Obtener Pedidos"
+    const n8nActualizarEstadoUrl = 'https://n8n.hperu.com/webhook/31814e60-50db-4605-9be3-c7b398b46f96'; // <-- Pega la URL del workflow "Actualizar Estado"
+
+    const container = document.getElementById('pedidos-container');
+
+    async function cargarPedidos() {
+        container.innerHTML = '<p id="cargando" style="padding: 20px;">Cargando pedidos...</p>';
+        try {
+            const response = await fetch(n8nObtenerPedidosUrl);
+            const data = await response.json();
+
+            if (data && data.pedidos_pendientes) {
+                document.getElementById('cargando').style.display = 'none';
+                const pedidos = data.pedidos_pendientes;
+
+                if (pedidos.length === 0) {
+                    container.innerHTML = '<p style="padding: 20px;">¡No hay pedidos pendientes!</p>';
+                }
+
+                pedidos.forEach(pedido => {
+                    const ticketHTML = `
+                        <div class="ticket" id="ticket-${pedido['ID Pedido']}">
+                            <h2>Pedido: ${pedido['ID Pedido']}</h2>
+                            <p><strong>Cliente:</strong> <span class="cliente">${pedido.Cliente}</span></p>
+                            <p><strong>Detalle:</strong></p>
+                            <div class="detalle_cocina" style="background-color: #fff44f; padding: 10px; border-radius: 5px;">
+  ${pedido.Detalle_Cocina}
+</div>
+                            <div class="detalle">${pedido.Detalle}</div>
+                            <button class="btn-despachado" onclick="despacharPedido('${pedido['ID Pedido']}')">✅ Despachado</button>
+                        </div>
+                    `;
+                    container.innerHTML += ticketHTML;
+                });
+            } else {
+                throw new Error('Formato de datos incorrecto.');
+            }
+        } catch (error) {
+            console.error("Error al cargar pedidos:", error);
+            document.getElementById('cargando').innerText = 'Error al cargar los pedidos.';
+        }
+    }
+
+    async function despacharPedido(idPedido) {
+        const boton = document.querySelector(`#ticket-${idPedido} .btn-despachado`);
+        boton.disabled = true;
+        boton.innerText = 'Despachando...';
+
+        try {
+            await fetch(n8nActualizarEstadoUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id_pedido: idPedido })
+            });
+            
+            // Si tiene éxito, elimina el ticket de la pantalla
+            const ticketElement = document.getElementById(`ticket-${idPedido}`);
+            ticketElement.style.transition = 'opacity 0.5s ease';
+            ticketElement.style.opacity = '0';
+            setTimeout(() => {
+                ticketElement.remove();
+                if (container.children.length === 0) {
+                    container.innerHTML = '<p style="padding: 20px;">¡No hay pedidos pendientes!</p>';
+                }
+            }, 500);
+
+        } catch (error) {
+            console.error("Error al despachar:", error);
+            alert(`No se pudo despachar el pedido ${idPedido}.`);
+            boton.disabled = false;
+            boton.innerText = '✅ Despachado';
+        }
+    }
+
+    // Cargar pedidos al iniciar y luego cada 30 segundos
+    document.addEventListener('DOMContentLoaded', cargarPedidos);
+    setInterval(cargarPedidos, 300000); // Actualización automática 100000 un minuto
+</script>
+
+</body>
+</html>

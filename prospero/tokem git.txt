@@ -1,0 +1,12 @@
+ssh -i "tu-llave.pem" usuario@http://18.118.157.176/
+
+
+ssh -i "n8n-key.pem" ubuntu@ec2-13-58-116-141.us-east-2.compute.amazonaws.com
+
+
+https://n8n-n8n.rjxq6w.easypanel.host/
+
+
+http://n8n_n8n:5678/
+
+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 git
